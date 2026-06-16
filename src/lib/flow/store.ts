@@ -15,7 +15,12 @@ export function loadLibrary(): FlowProject[] {
       localStorage.setItem(LIBRARY_KEY, JSON.stringify(MOCK_LIBRARY));
       return MOCK_LIBRARY;
     }
-    return JSON.parse(raw) as FlowProject[];
+    const parsed = JSON.parse(raw) as FlowProject[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(MOCK_LIBRARY));
+      return MOCK_LIBRARY;
+    }
+    return parsed;
   } catch {
     return MOCK_LIBRARY;
   }
