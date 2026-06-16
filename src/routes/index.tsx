@@ -52,7 +52,9 @@ function HomePage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setLibrary(loadLibrary());
+    const lib = loadLibrary();
+    console.log("[Fluxo] loadLibrary returned", lib.length, "items", lib);
+    setLibrary(lib);
     setMounted(true);
   }, []);
 
