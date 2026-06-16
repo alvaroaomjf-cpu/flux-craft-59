@@ -194,7 +194,3 @@ function ToolRow({
   );
 }
 
-export function _UnusedKeepImports() {
-  // Keep Button import to avoid TS noise if removed elsewhere
-  return <Button />;
-}
