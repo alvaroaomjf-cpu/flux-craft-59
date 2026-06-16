@@ -49,8 +49,12 @@ function HomePage() {
   const [library, setLibrary] = useState<FlowProject[]>([]);
   const [query, setQuery] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => setLibrary(loadLibrary()), []);
+  useEffect(() => {
+    setLibrary(loadLibrary());
+    setMounted(true);
+  }, []);
 
   const filtered = useMemo(
     () =>
