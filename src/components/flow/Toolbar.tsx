@@ -71,7 +71,7 @@ export function Toolbar(props: ToolbarProps) {
         "z-30 flex flex-col gap-1 border border-border bg-card/95 p-2 backdrop-blur-md",
         isFloating
           ? "absolute left-4 top-20 w-[220px] rounded-xl shadow-lg"
-          : "absolute left-0 top-0 h-full w-[220px] rounded-none border-l-0 border-y-0 shadow-sm",
+          : "absolute left-0 top-12 h-[calc(100%-3rem)] w-[220px] rounded-none border-l-0 border-b-0 border-t-0 shadow-sm",
       )}
     >
       <div className="flex items-center justify-between px-1 pb-1">
