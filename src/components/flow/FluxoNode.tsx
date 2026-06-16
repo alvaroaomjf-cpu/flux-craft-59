@@ -1,0 +1,84 @@
+import { memo } from "react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
+import type { FluxoNodeData, ShapeType } from "@/lib/flow/types";
+
+function shapeStyles(shape: ShapeType, w: number, h: number): React.CSSProperties {
+  switch (shape) {
+    case "rectangle":
+      return { borderRadius: 2 };
+    case "rounded-rectangle":
+      return { borderRadius: 12 };
+    case "circle":
+      return { borderRadius: 9999 };
+    case "diamond":
+      return { borderRadius: 4, transform: "rotate(45deg)" };
+    case "hexagon":
+      return {
+        clipPath: "polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%)",
+        borderRadius: 0,
+      };
+    case "cylinder":
+      return { borderRadius: `${w}px / 18px` };
+    default:
+      return { borderRadius: 8 };
+  }
+}
+
+function FluxoNodeComponent({ data, selected }: NodeProps) {
+  const d = data as FluxoNodeData;
+  const w = d.width ?? 180;
+  const h = d.height ?? 80;
+  const isDiamond = d.shape === "diamond";
+
+  const baseStyle: React.CSSProperties = {
+    width: w,
+    height: h,
+    backgroundColor: d.style.backgroundColor,
+    border: `1.5px solid ${selected ? "#0f172a" : d.style.borderColor}`,
+    color: d.style.textColor,
+    boxShadow: selected
+      ? "0 0 0 3px rgba(15, 23, 42, 0.08)"
+      : "0 1px 2px rgba(0,0,0,0.04)",
+    transition: "box-shadow 0.12s ease, border-color 0.12s ease",
+    position: "relative",
+    ...shapeStyles(d.shape, w, h),
+  };
+
+  return (
+    <div className="fluxo-node group" style={{ width: w, height: h, position: "relative" }}>
+      <div style={baseStyle} title={d.hiddenInfo || d.summary || d.title}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 12,
+            textAlign: "center",
+            transform: isDiamond ? "rotate(-45deg)" : undefined,
+          }}
+        >
+          <div className="text-[13px] font-medium leading-snug line-clamp-3">{d.title}</div>
+        </div>
+      </div>
+
+      {/* Hidden info tooltip */}
+      {d.hiddenInfo ? (
+        <div
+          className="pointer-events-none absolute left-1/2 z-50 hidden -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md group-hover:block"
+          style={{ top: -32, maxWidth: 240 }}
+        >
+          {d.hiddenInfo}
+        </div>
+      ) : null}
+
+      <Handle type="target" position={Position.Top} id="t" />
+      <Handle type="source" position={Position.Bottom} id="b" />
+      <Handle type="target" position={Position.Left} id="l" />
+      <Handle type="source" position={Position.Right} id="r" />
+    </div>
+  );
+}
+
+export const FluxoNode = memo(FluxoNodeComponent);
