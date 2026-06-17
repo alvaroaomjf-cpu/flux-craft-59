@@ -321,32 +321,40 @@ function FlowCard({
   });
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md">
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-[0_24px_48px_-24px_rgba(0,0,0,0.25)]">
       <button
         onClick={onOpen}
-        className="relative h-32 w-full overflow-hidden border-b border-border"
+        className="relative h-36 w-full overflow-hidden border-b border-border"
         style={{ background: project.background }}
         aria-label={`Abrir ${project.name}`}
       >
-        <Thumbnail project={project} />
+        <div className="absolute inset-0 paper-grid opacity-40" />
+        <div className="relative h-full">
+          <Thumbnail project={project} />
+        </div>
+        <div className="absolute right-2 top-2 rounded-full border border-border bg-card/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground backdrop-blur">
+          .flow
+        </div>
       </button>
 
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-medium">{project.name}</h3>
-            <p className="text-xs text-muted-foreground">
-              {project.nodes.length} blocos · atualizado {formatted}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h3 className="truncate font-display text-xl tracking-tight">{project.name}</h3>
+          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            {project.nodes.length} blocos · {formatted}
+          </p>
         </div>
         <div className="mt-2 flex items-center justify-between">
-          <Button size="sm" variant="default" onClick={onOpen} className="gap-1">
+          <Button
+            size="sm"
+            onClick={onOpen}
+            className="h-8 gap-1 rounded-full bg-foreground px-3 text-background hover:bg-foreground/90"
+          >
             Abrir
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Button>
-          <div className="flex items-center gap-1">
-            <Button size="sm" variant="ghost" onClick={onDuplicate} title="Duplicar">
+          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button size="sm" variant="ghost" onClick={onDuplicate} title="Duplicar" className="h-8 w-8 rounded-full p-0">
               <Copy className="h-3.5 w-3.5" />
             </Button>
             <Button
@@ -354,7 +362,7 @@ function FlowCard({
               variant="ghost"
               onClick={onDelete}
               title="Excluir"
-              className="text-muted-foreground hover:text-destructive"
+              className="h-8 w-8 rounded-full p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
