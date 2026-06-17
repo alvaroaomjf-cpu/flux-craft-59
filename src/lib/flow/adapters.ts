@@ -6,6 +6,7 @@ import {
 import {
   DEFAULT_EDGE_SEMANTIC,
   type EdgeLineType,
+  type FlowHandlePosition,
   type FlowProject,
   type FluxoEdgeData,
   type FluxoEdgeSerialized,
@@ -145,6 +146,6 @@ function reactFlowEdgeType(type: EdgeLineType) {
   return "smoothstep";
 }
 
-function normalizeHandle(value: unknown) {
+function normalizeHandle(value: unknown): FlowHandlePosition {
   return value === "top" || value === "right" || value === "bottom" || value === "left" ? value : "auto";
 }
