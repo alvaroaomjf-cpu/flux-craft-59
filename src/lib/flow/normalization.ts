@@ -6,6 +6,7 @@ import {
   type EdgeLineType,
   type EdgeStrokeType,
   type FlowFile,
+  type FlowHandlePosition,
   type FlowProjectSettings,
   type FlowValidationResult,
   type FlowViewport,
@@ -77,7 +78,7 @@ function normalizeSettings(input: unknown): FlowProjectSettings {
 
 function normalizeStyle(input: unknown): NodeStyle {
   const style = isObject(input) ? input : {};
-  const shadow = asString(style.shadow, DEFAULT_NODE_STYLE.shadow);
+  const shadow = asString(style.shadow, "sm");
   return {
     backgroundColor: asString(style.backgroundColor, DEFAULT_NODE_STYLE.backgroundColor),
     borderColor: asString(style.borderColor, DEFAULT_NODE_STYLE.borderColor),
@@ -223,7 +224,7 @@ function normalizeEdge(input: unknown, index: number, nodeIds: Set<string>, warn
   };
 }
 
-function normalizeHandle(input: unknown) {
+function normalizeHandle(input: unknown): FlowHandlePosition {
   const handle = asString(input, "auto");
   return handle === "top" || handle === "right" || handle === "bottom" || handle === "left" ? handle : "auto";
 }
