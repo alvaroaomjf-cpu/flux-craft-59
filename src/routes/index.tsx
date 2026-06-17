@@ -49,11 +49,9 @@ function HomePage() {
   const [library, setLibrary] = useState<FlowProject[]>([]);
   const [query, setQuery] = useState("");
   const [aiOpen, setAiOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setLibrary(loadLibrary());
-    setMounted(true);
   }, []);
 
   const filtered = useMemo(
@@ -114,73 +112,148 @@ function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="relative min-h-screen overflow-hidden bg-background text-foreground">
       <Toaster richColors closeButton />
 
+      {/* Ambient background */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[560px] dot-grid opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-40 right-[-10%] h-[480px] w-[480px] rounded-full opacity-40 blur-3xl"
+        style={{ background: "radial-gradient(closest-side, var(--brand-soft), transparent)" }}
+      />
+
       {/* Header */}
-      <header className="border-b border-border">
+      <header className="relative z-10">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card">
-              <span className="text-[13px] font-semibold tracking-tight">F</span>
+          <div className="flex items-center gap-2.5">
+            <div className="relative flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card shadow-sm">
+              <span className="font-display text-lg leading-none italic">F</span>
+              <span className="absolute -bottom-1 -right-1 h-2 w-2 rounded-full bg-brand" />
             </div>
-            <span className="text-[15px] font-medium tracking-tight">Fluxo</span>
+            <div className="leading-tight">
+              <div className="text-[15px] font-medium tracking-tight">Fluxo</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                desenhe . pense . exporte
+              </div>
+            </div>
           </div>
-          <a
-            className="text-xs text-muted-foreground"
-            href="#"
-            onClick={(e) => e.preventDefault()}
-          >
-            v0.1 · pré-visualização
-          </a>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="hidden sm:inline-flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+              v0.1 · pré-visualização
+            </span>
+          </div>
         </div>
       </header>
 
-      {/* Hero / actions */}
-      <section className="mx-auto max-w-6xl px-6 pt-14">
-        <h1 className="text-[34px] font-medium leading-tight tracking-tight text-foreground">
-          Desenhe fluxogramas
-          <br />
-          <span className="text-muted-foreground">com clareza, no seu ritmo.</span>
-        </h1>
-        <p className="mt-3 max-w-xl text-sm text-muted-foreground">
-          Uma tela infinita, blocos simples e o necessário para pensar visualmente.
-          Exporte como <code className="rounded bg-muted px-1 py-0.5 text-xs">.flow.json</code> ou continue
-          conversando com IAs externas.
-        </p>
+      {/* Hero */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pt-16 pb-10">
+        <div className="grid items-end gap-10 lg:grid-cols-[1.4fr_1fr]">
+          <div>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-muted-foreground backdrop-blur">
+              <Sparkles className="h-3 w-3 text-brand" />
+              Editor visual de fluxogramas
+            </div>
+            <h1 className="font-display text-[64px] leading-[0.95] tracking-tight text-foreground sm:text-[88px]">
+              Desenhe
+              <br />
+              <span className="italic text-brand">fluxogramas</span>
+              <br />
+              <span className="text-muted-foreground">com clareza.</span>
+            </h1>
+            <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-muted-foreground">
+              Uma tela infinita, blocos simples e o necessário para pensar visualmente.
+              Exporte como{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] text-foreground">
+                .flow.json
+              </code>{" "}
+              ou continue conversando com IAs externas.
+            </p>
 
-        <div className="mt-7 flex flex-wrap gap-2">
-          <Button onClick={createNew} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Criar novo fluxo
-          </Button>
-          <Button variant="outline" onClick={importFile} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Importar .flow.json
-          </Button>
-          <Button variant="outline" onClick={() => setAiOpen(true)} className="gap-2">
-            <Sparkles className="h-4 w-4" />
-            Criar fluxo com IA externa
-          </Button>
+            <div className="mt-8 flex flex-wrap gap-2">
+              <Button
+                onClick={createNew}
+                className="h-10 gap-2 rounded-full bg-foreground px-5 text-background hover:bg-foreground/90"
+              >
+                <Plus className="h-4 w-4" />
+                Criar novo fluxo
+              </Button>
+              <Button
+                variant="outline"
+                onClick={importFile}
+                className="h-10 gap-2 rounded-full border-border bg-card px-5"
+              >
+                <Upload className="h-4 w-4" />
+                Importar .flow.json
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setAiOpen(true)}
+                className="h-10 gap-2 rounded-full border-brand/30 bg-brand-soft/40 px-5 text-foreground hover:bg-brand-soft/70"
+              >
+                <Sparkles className="h-4 w-4 text-brand" />
+                Criar fluxo com IA externa
+              </Button>
+            </div>
+          </div>
+
+          {/* Decorative mini canvas */}
+          <div className="relative hidden lg:block">
+            <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.18)]">
+              <div className="absolute inset-0 paper-grid opacity-50" />
+              <svg viewBox="0 0 280 200" className="relative h-56 w-full">
+                <defs>
+                  <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 z" fill="currentColor" className="text-foreground/70" />
+                  </marker>
+                </defs>
+                <g className="text-foreground/70" stroke="currentColor" strokeWidth="1.4" fill="none">
+                  <path d="M70,50 L140,50" markerEnd="url(#arr)" />
+                  <path d="M170,68 L170,108" markerEnd="url(#arr)" />
+                  <path d="M155,140 L80,140 L80,72" markerEnd="url(#arr)" />
+                  <path d="M195,140 L240,140 L240,52" markerEnd="url(#arr)" />
+                </g>
+                <rect x="20" y="32" width="50" height="36" rx="8" fill="var(--card)" stroke="var(--foreground)" strokeWidth="1.4" />
+                <text x="45" y="55" textAnchor="middle" fontSize="10" fill="var(--foreground)" fontFamily="Inter">início</text>
+                <polygon points="170,108 200,140 170,172 140,140" fill="var(--brand-soft)" stroke="var(--brand)" strokeWidth="1.4" />
+                <text x="170" y="144" textAnchor="middle" fontSize="9" fill="var(--foreground)" fontFamily="Inter">decisão?</text>
+                <rect x="140" y="32" width="60" height="36" rx="18" fill="var(--card)" stroke="var(--foreground)" strokeWidth="1.4" />
+                <text x="170" y="55" textAnchor="middle" fontSize="10" fill="var(--foreground)" fontFamily="Inter">processo</text>
+                <circle cx="240" cy="40" r="16" fill="var(--card)" stroke="var(--foreground)" strokeWidth="1.4" />
+                <text x="240" y="44" textAnchor="middle" fontSize="9" fill="var(--foreground)" fontFamily="Inter">fim</text>
+              </svg>
+              <div className="relative mt-3 flex items-center justify-between border-t border-border pt-3 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                <span>canvas.flow</span>
+                <span className="font-mono">12 nós · 14 setas</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Library */}
-      <section className="mx-auto max-w-6xl px-6 py-14">
-        <div className="mb-5 flex items-end justify-between">
+      <section className="relative z-10 mx-auto max-w-6xl px-6 py-14">
+        <div className="mb-6 flex items-end justify-between gap-4 border-b border-border pb-4">
           <div>
-            <h2 className="text-base font-medium tracking-tight">Seus fluxos</h2>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              biblioteca
+            </div>
+            <h2 className="font-display text-3xl tracking-tight">Seus fluxos</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
               {library.length} {library.length === 1 ? "fluxo salvo" : "fluxos salvos"}
             </p>
           </div>
           <div className="relative w-64">
-            <Search className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar fluxo…"
-              className="h-9 pl-8 text-sm"
+              className="h-9 rounded-full border-border bg-card pl-9 text-sm"
             />
           </div>
         </div>
@@ -196,12 +269,24 @@ function HomePage() {
             />
           ))}
           {filtered.length === 0 ? (
-            <div className="col-span-full rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-              Nenhum fluxo encontrado.
-            </div>
+            <button
+              onClick={createNew}
+              className="col-span-full flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card/40 p-14 text-center text-sm text-muted-foreground transition-colors hover:border-brand/40 hover:bg-brand-soft/20"
+            >
+              <Plus className="h-5 w-5" />
+              <span className="font-display text-xl italic text-foreground">comece um fluxo</span>
+              <span>Nenhum resultado — clique para criar um novo.</span>
+            </button>
           ) : null}
         </div>
       </section>
+
+      <footer className="relative z-10 border-t border-border">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6 text-[11px] text-muted-foreground">
+          <span className="font-display italic">Fluxo</span>
+          <span className="font-mono uppercase tracking-[0.18em]">pense visualmente</span>
+        </div>
+      </footer>
 
       <ExternalAiFlowModal
         open={aiOpen}
@@ -234,32 +319,40 @@ function FlowCard({
   });
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-shadow hover:shadow-md">
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-[0_24px_48px_-24px_rgba(0,0,0,0.25)]">
       <button
         onClick={onOpen}
-        className="relative h-32 w-full overflow-hidden border-b border-border"
+        className="relative h-36 w-full overflow-hidden border-b border-border"
         style={{ background: project.background }}
         aria-label={`Abrir ${project.name}`}
       >
-        <Thumbnail project={project} />
+        <div className="absolute inset-0 paper-grid opacity-40" />
+        <div className="relative h-full">
+          <Thumbnail project={project} />
+        </div>
+        <div className="absolute right-2 top-2 rounded-full border border-border bg-card/80 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground backdrop-blur">
+          .flow
+        </div>
       </button>
 
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-medium">{project.name}</h3>
-            <p className="text-xs text-muted-foreground">
-              {project.nodes.length} blocos · atualizado {formatted}
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h3 className="truncate font-display text-xl tracking-tight">{project.name}</h3>
+          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+            {project.nodes.length} blocos · {formatted}
+          </p>
         </div>
         <div className="mt-2 flex items-center justify-between">
-          <Button size="sm" variant="default" onClick={onOpen} className="gap-1">
+          <Button
+            size="sm"
+            onClick={onOpen}
+            className="h-8 gap-1 rounded-full bg-foreground px-3 text-background hover:bg-foreground/90"
+          >
             Abrir
             <ArrowUpRight className="h-3.5 w-3.5" />
           </Button>
-          <div className="flex items-center gap-1">
-            <Button size="sm" variant="ghost" onClick={onDuplicate} title="Duplicar">
+          <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button size="sm" variant="ghost" onClick={onDuplicate} title="Duplicar" className="h-8 w-8 rounded-full p-0">
               <Copy className="h-3.5 w-3.5" />
             </Button>
             <Button
@@ -267,7 +360,7 @@ function FlowCard({
               variant="ghost"
               onClick={onDelete}
               title="Excluir"
-              className="text-muted-foreground hover:text-destructive"
+              className="h-8 w-8 rounded-full p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
