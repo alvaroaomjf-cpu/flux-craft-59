@@ -6,7 +6,6 @@ import {
   BackgroundVariant,
   Controls,
   MiniMap,
-  MarkerType,
   addEdge,
   applyEdgeChanges,
   applyNodeChanges,
@@ -25,25 +24,30 @@ import { NodePropertiesModal } from "./NodePropertiesModal";
 import { EdgePropertiesModal } from "./EdgePropertiesModal";
 import { ShortcutHelpModal } from "./ShortcutHelpModal";
 import {
+  DEFAULT_EDGE_SEMANTIC,
   DEFAULT_NODE_STYLE,
   DEFAULT_SEMANTIC,
-  DEFAULT_EDGE_SEMANTIC,
-  type FluxoEdgeData,
-  type FluxoNodeData,
-  type FluxoNodeSerialized,
-  type FluxoEdgeSerialized,
+  type FlowLayoutDirection,
   type FlowProject,
+  type FluxoEdgeData,
+  type FluxoEdgeSerialized,
+  type FluxoNodeData,
 } from "@/lib/flow/types";
-import { projectToFlowFile, validateFlowFile, flowFileToProject } from "@/lib/flow/example";
+import {
+  flowProjectToReactFlow,
+  fluxoEdgeToReactFlowEdge,
+  reactFlowToFlowProject,
+} from "@/lib/flow/adapters";
+import {
+  flowFileToProject,
+  getFlowFileName,
+  parseFlowFileJson,
+  projectToFlowFile,
+  stringifyFlowFile,
+} from "@/lib/flow/serialization";
 import { setCurrentProject, upsertProject } from "@/lib/flow/store";
 import { Button } from "@/components/ui/button";
-import {
-  ArrowLeft,
-  HelpCircle,
-  Palette,
-  Presentation,
-  X,
-} from "lucide-react";
+import { ArrowLeft, HelpCircle, Palette, Presentation, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
@@ -52,109 +56,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const nodeTypes = { fluxo: FluxoNode };
 
-function projectToRF(p: FlowProject): { nodes: Node[]; edges: Edge[] } {
-  const nodes: Node[] = p.nodes.map((n) => ({
-    id: n.id,
-    type: "fluxo",
-    position: n.position,
-    data: {
-      shape: n.shape,
-      title: n.title,
-      summary: n.summary,
-      hiddenInfo: n.hiddenInfo,
-      style: n.style,
-      icon: n.icon,
-      semantic: n.semantic,
-      width: n.size.width,
-      height: n.size.height,
-    } satisfies FluxoNodeData,
-  }));
-  const edges: Edge[] = p.edges.map((e) => rfEdge(e));
-  return { nodes, edges };
-}
-
-function rfEdge(e: FluxoEdgeSerialized): Edge {
-  const data: FluxoEdgeData = {
-    label: e.label,
-    hiddenInfo: e.hiddenInfo,
-    lineType: e.type,
-    stroke: e.stroke ?? "solid",
-    hasArrow: e.hasArrow ?? true,
-    semantic: e.semantic,
-  };
-  return {
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    label: e.label,
-    type:
-      e.type === "orthogonal"
-        ? "smoothstep"
-        : e.type === "bezier"
-          ? "default"
-          : "straight",
-    markerEnd:
-      e.hasArrow ?? true
-        ? { type: MarkerType.ArrowClosed, color: "#64748b", width: 18, height: 18 }
-        : undefined,
-    style: { strokeDasharray: (e.stroke ?? "solid") === "dashed" ? "5 4" : undefined },
-    data,
-  };
-}
-
-function rfToProject(
-  base: FlowProject,
-  nodes: Node[],
-  edges: Edge[],
-): FlowProject {
-  const nNodes: FluxoNodeSerialized[] = nodes.map((n) => {
-    const d = n.data as FluxoNodeData;
-    return {
-      id: n.id,
-      type: "block",
-      shape: d.shape,
-      title: d.title,
-      summary: d.summary,
-      hiddenInfo: d.hiddenInfo,
-      position: n.position,
-      size: { width: d.width, height: d.height },
-      style: d.style,
-      icon: d.icon,
-      semantic: d.semantic,
-    };
-  });
-  const nEdges: FluxoEdgeSerialized[] = edges.map((e) => {
-    const d = (e.data as FluxoEdgeData | undefined) ?? {
-      hiddenInfo: "",
-      lineType: "orthogonal",
-      stroke: "solid",
-      hasArrow: true,
-      semantic: DEFAULT_EDGE_SEMANTIC,
-    };
-    return {
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      label: d.label ?? (typeof e.label === "string" ? e.label : undefined),
-      hiddenInfo: d.hiddenInfo,
-      type: d.lineType,
-      stroke: d.stroke,
-      hasArrow: d.hasArrow,
-      semantic: d.semantic,
-    };
-  });
-  return { ...base, nodes: nNodes, edges: nEdges, updatedAt: new Date().toISOString() };
-}
+type FlowSnapshot = { nodes: Node[]; edges: Edge[] };
 
 interface FlowEditorProps {
   project: FlowProject;
@@ -170,14 +78,16 @@ export function FlowEditor(props: FlowEditorProps) {
 
 function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
   const [project, setProject] = useState<FlowProject>(initialProject);
-  const initial = useMemo(() => projectToRF(initialProject), [initialProject]);
+  const projectRef = useRef<FlowProject>(initialProject);
+
+  const initial = useMemo(() => flowProjectToReactFlow(initialProject), [initialProject]);
   const [nodes, setNodes] = useState<Node[]>(initial.nodes);
   const [edges, setEdges] = useState<Edge[]>(initial.edges);
 
   const [tool, setTool] = useState<Tool>("select");
   const [toolbarMode, setToolbarMode] = useState<"side" | "floating">("side");
-  const [gridOn, setGridOn] = useState(true);
-  const [snapOn, setSnapOn] = useState(true);
+  const [gridOn, setGridOn] = useState(initialProject.settings?.gridVisible ?? true);
+  const [snapOn, setSnapOn] = useState(initialProject.settings?.snapToGrid ?? true);
   const [presentation, setPresentation] = useState(false);
   const [background, setBackground] = useState(initialProject.background);
 
@@ -191,50 +101,86 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const { fitView, screenToFlowPosition } = useReactFlow();
 
-  // Undo/redo stacks — minimal implementation.
-  const historyRef = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
-  const futureRef = useRef<{ nodes: Node[]; edges: Edge[] }[]>([]);
+  const historyRef = useRef<FlowSnapshot[]>([]);
+  const futureRef = useRef<FlowSnapshot[]>([]);
+  const isRestoringRef = useRef(false);
+
   const snapshot = useCallback(() => {
+    if (isRestoringRef.current) return;
     historyRef.current.push({ nodes, edges });
-    if (historyRef.current.length > 50) historyRef.current.shift();
+    if (historyRef.current.length > 80) historyRef.current.shift();
     futureRef.current = [];
   }, [nodes, edges]);
 
-  // Persist
+  const persistProject = useCallback(
+    (next: FlowProject) => {
+      projectRef.current = next;
+      setProject(next);
+      setCurrentProject(next);
+      upsertProject(next);
+    },
+    [],
+  );
+
   useEffect(() => {
-    const updated = rfToProject({ ...project, background }, nodes, edges);
-    setProject(updated);
-    setCurrentProject(updated);
-    upsertProject(updated);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, background]);
+    const updated = reactFlowToFlowProject(
+      {
+        ...projectRef.current,
+        background,
+        settings: {
+          ...(projectRef.current.settings ?? {
+            theme: "light",
+            gridVisible: true,
+            snapToGrid: true,
+            gridSize: 20,
+            layoutDirection: "vertical",
+          }),
+          gridVisible: gridOn,
+          snapToGrid: snapOn,
+        },
+      },
+      nodes,
+      edges,
+    );
+    persistProject(updated);
+  }, [nodes, edges, background, gridOn, snapOn, persistProject]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => setNodes((nds) => applyNodeChanges(changes, nds)),
     [],
   );
+
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => setEdges((eds) => applyEdgeChanges(changes, eds)),
     [],
   );
+
+  const createEdge = useCallback((edge: FluxoEdgeSerialized) => fluxoEdgeToReactFlowEdge(edge), []);
+
   const onConnect = useCallback(
     (conn: Connection) => {
+      if (!conn.source || !conn.target) return;
       snapshot();
       const id = `edge-${Date.now()}`;
       const serialized: FluxoEdgeSerialized = {
         id,
-        source: conn.source!,
-        target: conn.target!,
+        source: conn.source,
+        target: conn.target,
+        sourceHandle: (conn.sourceHandle as FluxoEdgeSerialized["sourceHandle"]) ?? "auto",
+        targetHandle: (conn.targetHandle as FluxoEdgeSerialized["targetHandle"]) ?? "auto",
         label: undefined,
         hiddenInfo: "",
         type: "orthogonal",
         stroke: "solid",
         hasArrow: true,
+        style: { stroke: "#374151", strokeWidth: 2, strokeDasharray: null, markerEnd: "arrow" },
+        routing: { mode: "auto", points: [], avoidCrossings: true },
         semantic: { ...DEFAULT_EDGE_SEMANTIC },
+        customFields: [],
       };
-      setEdges((eds) => addEdge(rfEdge(serialized), eds));
+      setEdges((eds) => addEdge(createEdge(serialized), eds));
     },
-    [snapshot],
+    [createEdge, snapshot],
   );
 
   const addBlock = useCallback(
@@ -248,9 +194,11 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         summary: "",
         hiddenInfo: "",
         style: { ...DEFAULT_NODE_STYLE },
+        icon: { type: "none", name: "", customSrc: null },
         semantic: { ...DEFAULT_SEMANTIC },
         width: 180,
         height: 80,
+        customFields: [],
       };
       setNodes((nds) => [...nds, { id, type: "fluxo", position: pos, data }]);
     },
@@ -261,29 +209,107 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
     const prev = historyRef.current.pop();
     if (!prev) return;
     futureRef.current.push({ nodes, edges });
+    isRestoringRef.current = true;
     setNodes(prev.nodes);
     setEdges(prev.edges);
-  }, [nodes, edges]);
-  const redo = useCallback(() => {
-    const nxt = futureRef.current.pop();
-    if (!nxt) return;
-    historyRef.current.push({ nodes, edges });
-    setNodes(nxt.nodes);
-    setEdges(nxt.edges);
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    queueMicrotask(() => {
+      isRestoringRef.current = false;
+    });
   }, [nodes, edges]);
 
-  // Organize (simple layered fallback)
+  const redo = useCallback(() => {
+    const next = futureRef.current.pop();
+    if (!next) return;
+    historyRef.current.push({ nodes, edges });
+    isRestoringRef.current = true;
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    queueMicrotask(() => {
+      isRestoringRef.current = false;
+    });
+  }, [nodes, edges]);
+
+  const deleteSelection = useCallback(() => {
+    const selectedNodeIds = new Set(nodes.filter((n) => n.selected || n.id === selectedNode?.id).map((n) => n.id));
+    const selectedEdgeIds = new Set(edges.filter((e) => e.selected || e.id === selectedEdge?.id).map((e) => e.id));
+
+    if (!selectedNodeIds.size && !selectedEdgeIds.size) return;
+
+    snapshot();
+    setNodes((nds) => nds.filter((n) => !selectedNodeIds.has(n.id)));
+    setEdges((eds) =>
+      eds.filter(
+        (e) =>
+          !selectedEdgeIds.has(e.id) &&
+          !selectedNodeIds.has(e.source) &&
+          !selectedNodeIds.has(e.target),
+      ),
+    );
+    setSelectedNode(null);
+    setSelectedEdge(null);
+    setNodeModalOpen(false);
+    setEdgeModalOpen(false);
+  }, [edges, nodes, selectedEdge?.id, selectedNode?.id, snapshot]);
+
+  const duplicateSelection = useCallback(() => {
+    const selectedNodes = nodes.filter((n) => n.selected || n.id === selectedNode?.id);
+    if (!selectedNodes.length) return;
+
+    snapshot();
+    const idMap = new Map<string, string>();
+    const timestamp = Date.now();
+    const duplicatedNodes = selectedNodes.map((node, index) => {
+      const newId = `node-${timestamp}-${index}`;
+      idMap.set(node.id, newId);
+      const data = node.data as FluxoNodeData;
+      return {
+        ...node,
+        id: newId,
+        selected: true,
+        position: { x: node.position.x + 40, y: node.position.y + 40 },
+        data: { ...data, title: `${data.title} cópia` },
+      } satisfies Node;
+    });
+
+    const duplicatedEdges = edges
+      .filter((edge) => idMap.has(edge.source) && idMap.has(edge.target))
+      .map((edge, index) => ({
+        ...edge,
+        id: `edge-${timestamp}-${index}`,
+        source: idMap.get(edge.source)!,
+        target: idMap.get(edge.target)!,
+        selected: true,
+      } satisfies Edge));
+
+    setNodes((nds) => [...nds.map((n) => ({ ...n, selected: false })), ...duplicatedNodes]);
+    setEdges((eds) => [...eds.map((e) => ({ ...e, selected: false })), ...duplicatedEdges]);
+    setSelectedNode(duplicatedNodes[0] ?? null);
+    setSelectedEdge(null);
+  }, [edges, nodes, selectedNode?.id, snapshot]);
+
+  const selectAll = useCallback(() => {
+    setNodes((nds) => nds.map((n) => ({ ...n, selected: true })));
+    setEdges((eds) => eds.map((e) => ({ ...e, selected: true })));
+    setSelectedNode(null);
+    setSelectedEdge(null);
+  }, []);
+
   const organize = useCallback(
-    (dir: "vertical" | "horizontal" | "radial" | "compact" = "horizontal") => {
+    (dir: FlowLayoutDirection = "horizontal") => {
       snapshot();
-      // Simple BFS layering from "roots" (no incoming edges).
       const incoming = new Map<string, number>();
       nodes.forEach((n) => incoming.set(n.id, 0));
       edges.forEach((e) => incoming.set(e.target, (incoming.get(e.target) ?? 0) + 1));
+
       const layers: string[][] = [];
       const visited = new Set<string>();
       let current = nodes.filter((n) => (incoming.get(n.id) ?? 0) === 0).map((n) => n.id);
       if (current.length === 0 && nodes.length) current = [nodes[0]!.id];
+
       while (current.length) {
         layers.push(current);
         current.forEach((id) => visited.add(id));
@@ -293,7 +319,7 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         });
         current = Array.from(next);
       }
-      // Append any orphans
+
       nodes.forEach((n) => {
         if (!visited.has(n.id)) layers.push([n.id]);
       });
@@ -302,22 +328,25 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
       const gapY = dir === "compact" ? 120 : 160;
       setNodes((nds) =>
         nds.map((n) => {
-          const layer = layers.findIndex((l) => l.includes(n.id));
+          const layer = Math.max(layers.findIndex((l) => l.includes(n.id)), 0);
           const indexIn = layers[layer]?.indexOf(n.id) ?? 0;
-          let x = 80,
-            y = 80;
+          let x = 80;
+          let y = 80;
+
           if (dir === "vertical") {
             x = 80 + indexIn * gapX;
             y = 80 + layer * gapY;
           } else if (dir === "radial") {
-            const angle = (indexIn / Math.max(layers[layer]?.length ?? 1, 1)) * Math.PI * 2;
-            const r = 120 + layer * 160;
-            x = 500 + Math.cos(angle) * r;
-            y = 320 + Math.sin(angle) * r;
+            const count = Math.max(layers[layer]?.length ?? 1, 1);
+            const angle = (indexIn / count) * Math.PI * 2;
+            const radius = 120 + layer * 160;
+            x = 500 + Math.cos(angle) * radius;
+            y = 320 + Math.sin(angle) * radius;
           } else {
             x = 80 + layer * gapX;
             y = 80 + indexIn * gapY;
           }
+
           return { ...n, position: { x, y } };
         }),
       );
@@ -327,92 +356,113 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
   );
 
   const exportJson = useCallback(() => {
-    const file = projectToFlowFile(rfToProject({ ...project, background }, nodes, edges));
-    const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${project.name.replace(/\s+/g, "-").toLowerCase()}.flow.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Fluxo exportado.");
-  }, [nodes, edges, project, background]);
+    try {
+      const current = reactFlowToFlowProject({ ...projectRef.current, background }, nodes, edges);
+      const file = projectToFlowFile(current);
+      const blob = new Blob([stringifyFlowFile(file)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = getFlowFileName(file.project.name);
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Fluxo exportado.");
+    } catch (error) {
+      toast.error((error as Error).message || "Não foi possível exportar o fluxo.");
+    }
+  }, [nodes, edges, background]);
 
   const exportPng = useCallback(() => {
-    // TODO(real-export): integrate html-to-image to actually rasterize. For now, simulate.
+    // TODO(real-export): integrar html-to-image ou recurso desktop para rasterizar o fluxo completo.
     toast.info("Exportação PNG: simulada nesta versão visual.");
   }, []);
 
   const triggerImport = useCallback(() => fileInputRef.current?.click(), []);
-  const onImportFile = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const f = e.target.files?.[0];
-      if (!f) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const parsed = JSON.parse(String(reader.result));
-          const res = validateFlowFile(parsed);
-          if (!res.ok || !res.file) {
-            toast.error(res.error ?? "Arquivo inválido.");
-            return;
-          }
-          const proj = flowFileToProject(res.file);
-          const rf = projectToRF(proj);
-          setProject(proj);
-          setBackground(proj.background);
-          setNodes(rf.nodes);
-          setEdges(rf.edges);
-          toast.success("Fluxo importado.");
-        } catch (err) {
-          toast.error("JSON inválido: " + (err as Error).message);
-        }
-      };
-      reader.readAsText(f);
-      e.target.value = "";
-    },
-    [],
-  );
 
-  // Keyboard shortcuts
+  const onImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const parsed = parseFlowFileJson(String(reader.result));
+      if (!parsed.ok || !parsed.file) {
+        toast.error(parsed.error ?? "Arquivo inválido.");
+        return;
+      }
+
+      try {
+        snapshot();
+        const importedProject = flowFileToProject(parsed.file);
+        const rf = flowProjectToReactFlow(importedProject);
+        persistProject(importedProject);
+        setBackground(importedProject.background);
+        setGridOn(importedProject.settings?.gridVisible ?? true);
+        setSnapOn(importedProject.settings?.snapToGrid ?? true);
+        setNodes(rf.nodes);
+        setEdges(rf.edges);
+        setSelectedNode(null);
+        setSelectedEdge(null);
+        toast.success("Fluxo importado.");
+      } catch (error) {
+        toast.error((error as Error).message || "Não foi possível importar o fluxo.");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  }, [persistProject, snapshot]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+
       const ctrl = e.ctrlKey || e.metaKey;
-      if (ctrl && e.key.toLowerCase() === "s") {
+      const key = e.key.toLowerCase();
+
+      if (ctrl && key === "s") {
         e.preventDefault();
         exportJson();
         return;
       }
-      if (ctrl && e.key.toLowerCase() === "e") {
+      if (ctrl && key === "e") {
         e.preventDefault();
         exportJson();
         return;
       }
-      if (ctrl && e.key.toLowerCase() === "o") {
+      if (ctrl && key === "o") {
         e.preventDefault();
         triggerImport();
         return;
       }
-      if (ctrl && e.key.toLowerCase() === "p") {
+      if (ctrl && key === "p") {
         e.preventDefault();
         exportPng();
         return;
       }
-      if (ctrl && e.key.toLowerCase() === "l") {
+      if (ctrl && key === "l") {
         e.preventDefault();
         organize("horizontal");
         return;
       }
-      if (ctrl && e.key.toLowerCase() === "z") {
+      if (ctrl && key === "z") {
         e.preventDefault();
         undo();
         return;
       }
-      if (ctrl && e.key.toLowerCase() === "y") {
+      if (ctrl && key === "y") {
         e.preventDefault();
         redo();
+        return;
+      }
+      if (ctrl && key === "d") {
+        e.preventDefault();
+        duplicateSelection();
+        return;
+      }
+      if (ctrl && key === "a") {
+        e.preventDefault();
+        selectAll();
         return;
       }
       if (ctrl && e.key === "0") {
@@ -420,26 +470,51 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         fitView({ padding: 0.2 });
         return;
       }
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteSelection();
+        return;
+      }
+      if (e.key === "Escape") {
+        setSelectedNode(null);
+        setSelectedEdge(null);
+        setNodeModalOpen(false);
+        setEdgeModalOpen(false);
+        return;
+      }
       if (e.key === "F11") {
         e.preventDefault();
         setPresentation((v) => !v);
         return;
       }
-      const k = e.key.toLowerCase();
-      if (k === "v") setTool("select");
-      else if (k === "b") addBlock();
-      else if (k === "f") setTool("shape");
-      else if (k === "l") setTool("line");
-      else if (k === "a") setTool("arrow");
-      else if (k === "c") setTool("connect");
-      else if (k === "t") setTool("text");
-      else if (k === "g") setGridOn((v) => !v);
-      else if (k === "s") setSnapOn((v) => !v);
-      else if (k === "?") setHelpOpen(true);
+
+      if (key === "v") setTool("select");
+      else if (key === "b") addBlock();
+      else if (key === "f") setTool("shape");
+      else if (key === "l") setTool("line");
+      else if (key === "a") setTool("arrow");
+      else if (key === "c") setTool("connect");
+      else if (key === "t") setTool("text");
+      else if (key === "g") setGridOn((v) => !v);
+      else if (key === "s") setSnapOn((v) => !v);
+      else if (key === "?") setHelpOpen(true);
     };
+
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [addBlock, exportJson, exportPng, fitView, organize, redo, triggerImport, undo]);
+  }, [
+    addBlock,
+    deleteSelection,
+    duplicateSelection,
+    exportJson,
+    exportPng,
+    fitView,
+    organize,
+    redo,
+    selectAll,
+    triggerImport,
+    undo,
+  ]);
 
   const onPaneClick = useCallback(
     (e: React.MouseEvent) => {
@@ -454,63 +529,88 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
     [tool, addBlock, screenToFlowPosition],
   );
 
-  const onNodeClick = useCallback((_: unknown, n: Node) => {
-    setSelectedNode(n);
+  const onNodeClick = useCallback((_: unknown, node: Node) => {
+    setSelectedNode(node);
     setSelectedEdge(null);
   }, []);
-  const onEdgeClick = useCallback((_: unknown, ed: Edge) => {
-    setSelectedEdge(ed);
+
+  const onEdgeClick = useCallback((_: unknown, edge: Edge) => {
+    setSelectedEdge(edge);
     setSelectedNode(null);
   }, []);
-  const onNodeDoubleClick = useCallback((_: unknown, n: Node) => {
-    setSelectedNode(n);
+
+  const onNodeDoubleClick = useCallback((_: unknown, node: Node) => {
+    setSelectedNode(node);
     setNodeModalOpen(true);
   }, []);
-  const onEdgeDoubleClick = useCallback((_: unknown, ed: Edge) => {
-    setSelectedEdge(ed);
+
+  const onEdgeDoubleClick = useCallback((_: unknown, edge: Edge) => {
+    setSelectedEdge(edge);
     setEdgeModalOpen(true);
   }, []);
 
-  const onSaveNode = (d: FluxoNodeData) => {
+  const onSaveNode = useCallback(
+    (data: FluxoNodeData) => {
+      if (!selectedNode) return;
+      snapshot();
+      setNodes((nds) => nds.map((n) => (n.id === selectedNode.id ? { ...n, data } : n)));
+      setSelectedNode((n) => (n ? { ...n, data } : n));
+    },
+    [selectedNode, snapshot],
+  );
+
+  const onDeleteNode = useCallback(() => {
     if (!selectedNode) return;
-    snapshot();
-    setNodes((nds) => nds.map((n) => (n.id === selectedNode.id ? { ...n, data: d } : n)));
-  };
-  const onDeleteNode = () => {
-    if (!selectedNode) return;
-    snapshot();
-    setNodes((nds) => nds.filter((n) => n.id !== selectedNode.id));
-    setEdges((eds) => eds.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
-    setNodeModalOpen(false);
-    setSelectedNode(null);
-  };
-  const onSaveEdge = (d: FluxoEdgeData) => {
+    deleteSelection();
+  }, [deleteSelection, selectedNode]);
+
+  const onSaveEdge = useCallback(
+    (data: FluxoEdgeData) => {
+      if (!selectedEdge) return;
+      snapshot();
+      setEdges((eds) =>
+        eds.map((edge) => {
+          if (edge.id !== selectedEdge.id) return edge;
+          return createEdge({
+            id: edge.id,
+            source: edge.source,
+            target: edge.target,
+            sourceHandle: data.sourceHandle ?? (edge.sourceHandle as FluxoEdgeSerialized["sourceHandle"]) ?? "auto",
+            targetHandle: data.targetHandle ?? (edge.targetHandle as FluxoEdgeSerialized["targetHandle"]) ?? "auto",
+            label: data.label,
+            hiddenInfo: data.hiddenInfo,
+            type: data.lineType,
+            stroke: data.stroke,
+            hasArrow: data.hasArrow,
+            style: data.style ?? {
+              stroke: "#374151",
+              strokeWidth: 2,
+              strokeDasharray: data.stroke === "dashed" ? "5 4" : null,
+              markerEnd: data.hasArrow ? "arrow" : "none",
+            },
+            routing: data.routing ?? { mode: "auto", points: [], avoidCrossings: true },
+            semantic: data.semantic,
+            customFields: data.customFields ?? [],
+          });
+        }),
+      );
+      setSelectedEdge((edge) => (edge ? { ...edge, data, label: data.label } : edge));
+    },
+    [createEdge, selectedEdge, snapshot],
+  );
+
+  const onDeleteEdge = useCallback(() => {
     if (!selectedEdge) return;
-    snapshot();
-    setEdges((eds) =>
-      eds.map((e) =>
-        e.id === selectedEdge.id
-          ? {
-              ...e,
-              data: d,
-              label: d.label,
-              type: d.lineType === "orthogonal" ? "smoothstep" : d.lineType === "bezier" ? "default" : "straight",
-              markerEnd: d.hasArrow
-                ? { type: MarkerType.ArrowClosed, color: "#64748b", width: 18, height: 18 }
-                : undefined,
-              style: { strokeDasharray: d.stroke === "dashed" ? "5 4" : undefined },
-            }
-          : e,
-      ),
-    );
-  };
-  const onDeleteEdge = () => {
-    if (!selectedEdge) return;
-    snapshot();
-    setEdges((eds) => eds.filter((e) => e.id !== selectedEdge.id));
-    setEdgeModalOpen(false);
-    setSelectedEdge(null);
-  };
+    deleteSelection();
+  }, [deleteSelection, selectedEdge]);
+
+  const updateProjectName = useCallback(
+    (name: string) => {
+      const next = { ...projectRef.current, name, updatedAt: new Date().toISOString() };
+      persistProject(next);
+    },
+    [persistProject],
+  );
 
   return (
     <div ref={wrapperRef} className="relative h-screen w-screen overflow-hidden bg-background">
@@ -522,7 +622,6 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         onChange={onImportFile}
       />
 
-      {/* Top bar */}
       {!presentation && (
         <div className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between border-b border-border bg-card/85 px-4 py-2.5 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -538,7 +637,7 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
               <input
                 value={project.name}
-                onChange={(e) => setProject({ ...project, name: e.target.value })}
+                onChange={(e) => updateProjectName(e.target.value)}
                 className="bg-transparent font-display text-base italic tracking-tight outline-none focus:underline"
                 style={{ width: `${Math.max(project.name.length, 8)}ch` }}
               />
@@ -563,7 +662,7 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
                   </Label>
                   <div className="mt-2 flex items-center overflow-hidden rounded-md border border-border bg-background">
                     <label className="relative h-9 w-10 cursor-pointer border-r border-border">
-                      <span className="absolute inset-1 rounded" style={{ background: background }} />
+                      <span className="absolute inset-1 rounded" style={{ background }} />
                       <input
                         type="color"
                         value={background}
@@ -583,14 +682,16 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
                     Predefinidos
                   </Label>
                   <div className="mt-2 grid grid-cols-6 gap-1.5">
-                    {["#ffffff", "#fafaf7", "#f7f1e6", "#e0eefb", "#ece6f5", "#0f172a"].map((c) => (
+                    {["#ffffff", "#fafaf7", "#f7f1e6", "#e0eefb", "#ece6f5", "#0f172a"].map((color) => (
                       <button
-                        key={c}
-                        onClick={() => setBackground(c)}
+                        key={color}
+                        onClick={() => setBackground(color)}
                         className={`h-8 rounded-md border transition ${
-                          background === c ? "border-foreground ring-2 ring-foreground/20" : "border-border hover:border-foreground/40"
+                          background === color
+                            ? "border-foreground ring-2 ring-foreground/20"
+                            : "border-border hover:border-foreground/40"
                         }`}
-                        style={{ background: c }}
+                        style={{ background: color }}
                       />
                     ))}
                   </div>
@@ -633,7 +734,6 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         </div>
       )}
 
-      {/* Presentation exit */}
       {presentation && (
         <button
           onClick={() => setPresentation(false)}
@@ -644,7 +744,6 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         </button>
       )}
 
-      {/* Canvas */}
       <div
         className="absolute inset-0"
         style={{
@@ -663,6 +762,11 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
           onEdgeClick={onEdgeClick}
           onNodeDoubleClick={onNodeDoubleClick}
           onEdgeDoubleClick={onEdgeDoubleClick}
+          onNodeDragStart={snapshot}
+          onSelectionChange={({ nodes: selectedNodes, edges: selectedEdges }) => {
+            setSelectedNode(selectedNodes.length === 1 ? selectedNodes[0]! : null);
+            setSelectedEdge(selectedEdges.length === 1 ? selectedEdges[0]! : null);
+          }}
           nodeTypes={nodeTypes}
           snapToGrid={snapOn}
           snapGrid={[16, 16]}
@@ -670,30 +774,20 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
           style={{ backgroundColor: background }}
           proOptions={{ hideAttribution: true }}
         >
-          {gridOn ? (
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#cbd5e1" />
-          ) : null}
-          <Controls
-            position="bottom-right"
-            showInteractive={false}
-            className="!shadow-sm"
-          />
+          {gridOn ? <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#cbd5e1" /> : null}
+          <Controls position="bottom-right" showInteractive={false} className="!shadow-sm" />
           <MiniMap
             position="bottom-left"
             pannable
             zoomable
             maskColor="rgba(15,23,42,0.04)"
-            nodeColor={(n) => {
-              const d = n.data as FluxoNodeData;
-              return d?.style?.backgroundColor ?? "#ffffff";
-            }}
-            nodeStrokeColor={(n) => (n.data as FluxoNodeData)?.style?.borderColor ?? "#d1d5db"}
+            nodeColor={(node) => ((node.data as FluxoNodeData)?.style?.backgroundColor ?? "#ffffff")}
+            nodeStrokeColor={(node) => ((node.data as FluxoNodeData)?.style?.borderColor ?? "#d1d5db")}
             style={{ width: 160, height: 110 }}
           />
         </ReactFlow>
       </div>
 
-      {/* Toolbar */}
       <Toolbar
         mode={toolbarMode}
         onModeChange={setToolbarMode}
