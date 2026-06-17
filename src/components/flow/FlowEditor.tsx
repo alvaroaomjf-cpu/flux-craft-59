@@ -524,66 +524,87 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
 
       {/* Top bar */}
       {!presentation && (
-        <div className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between border-b border-border bg-card/90 px-4 py-2 backdrop-blur">
+        <div className="absolute left-0 right-0 top-0 z-30 flex items-center justify-between border-b border-border bg-card/85 px-4 py-2.5 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <Link
               to="/"
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              className="group flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground transition hover:border-foreground/30 hover:text-foreground"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
               Fluxo
             </Link>
             <span className="text-muted-foreground/40">/</span>
-            <input
-              value={project.name}
-              onChange={(e) => setProject({ ...project, name: e.target.value })}
-              className="bg-transparent text-sm font-medium outline-none focus:underline"
-            />
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+              <input
+                value={project.name}
+                onChange={(e) => setProject({ ...project, name: e.target.value })}
+                className="bg-transparent font-display text-base italic tracking-tight outline-none focus:underline"
+                style={{ width: `${Math.max(project.name.length, 8)}ch` }}
+              />
+            </div>
+            <span className="hidden font-mono text-[10px] uppercase tracking-wider text-muted-foreground sm:inline">
+              · {nodes.length} blocos · {edges.length} setas
+            </span>
           </div>
 
           <div className="flex items-center gap-1">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="ghost" size="sm">
-                  <Palette className="mr-1 h-4 w-4" />
+                <Button variant="ghost" size="sm" className="rounded-full gap-1.5">
+                  <Palette className="h-4 w-4" />
                   Aparência
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 space-y-2">
-                <Label className="text-xs text-muted-foreground">Cor do canvas</Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={background}
-                    onChange={(e) => setBackground(e.target.value)}
-                    className="h-9 w-12 cursor-pointer rounded border border-border bg-transparent"
-                  />
-                  <Input
-                    value={background}
-                    onChange={(e) => setBackground(e.target.value)}
-                    className="font-mono text-xs"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {["#ffffff", "#fafafa", "#f8fafc", "#f5f3ff", "#fef3c7", "#0f172a"].map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setBackground(c)}
-                      className="h-6 w-6 rounded border border-border"
-                      style={{ background: c }}
+              <PopoverContent align="end" className="w-72 space-y-3">
+                <div>
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Cor do canvas
+                  </Label>
+                  <div className="mt-2 flex items-center overflow-hidden rounded-md border border-border bg-background">
+                    <label className="relative h-9 w-10 cursor-pointer border-r border-border">
+                      <span className="absolute inset-1 rounded" style={{ background: background }} />
+                      <input
+                        type="color"
+                        value={background}
+                        onChange={(e) => setBackground(e.target.value)}
+                        className="absolute inset-0 cursor-pointer opacity-0"
+                      />
+                    </label>
+                    <Input
+                      value={background}
+                      onChange={(e) => setBackground(e.target.value)}
+                      className="h-9 border-0 font-mono text-xs focus-visible:ring-0"
                     />
-                  ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Predefinidos
+                  </Label>
+                  <div className="mt-2 grid grid-cols-6 gap-1.5">
+                    {["#ffffff", "#fafaf7", "#f7f1e6", "#e0eefb", "#ece6f5", "#0f172a"].map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setBackground(c)}
+                        className={`h-8 rounded-md border transition ${
+                          background === c ? "border-foreground ring-2 ring-foreground/20" : "border-border hover:border-foreground/40"
+                        }`}
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
                 </div>
               </PopoverContent>
             </Popover>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" className="rounded-full">
                   Organizar
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end" className="min-w-[160px]">
                 <DropdownMenuItem onClick={() => organize("horizontal")}>Horizontal</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => organize("vertical")}>Vertical</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => organize("radial")}>Radial</DropdownMenuItem>
@@ -591,11 +612,21 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Button variant="ghost" size="sm" onClick={() => setHelpOpen(true)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHelpOpen(true)}
+              className="rounded-full"
+              title="Atalhos"
+            >
               <HelpCircle className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setPresentation(true)}>
-              <Presentation className="mr-1 h-4 w-4" />
+            <Button
+              size="sm"
+              onClick={() => setPresentation(true)}
+              className="rounded-full gap-1.5 bg-foreground text-background hover:bg-foreground/90"
+            >
+              <Presentation className="h-3.5 w-3.5" />
               Apresentar
             </Button>
           </div>
@@ -606,7 +637,7 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
       {presentation && (
         <button
           onClick={() => setPresentation(false)}
-          className="absolute right-4 top-4 z-40 flex items-center gap-1 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-md backdrop-blur hover:text-foreground"
+          className="absolute right-4 top-4 z-40 flex items-center gap-1.5 rounded-full border border-border bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-md backdrop-blur hover:text-foreground"
         >
           <X className="h-3.5 w-3.5" />
           Sair do modo apresentação

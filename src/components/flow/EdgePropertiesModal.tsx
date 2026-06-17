@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -11,7 +10,29 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Trash2, EyeOff, ArrowRight } from "lucide-react";
 import type { FluxoEdgeData, EdgeLineType, EdgeStrokeType } from "@/lib/flow/types";
+
+const LINE_TYPES: { id: EdgeLineType; label: string }[] = [
+  { id: "orthogonal", label: "Ortogonal" },
+  { id: "bezier", label: "Curva" },
+  { id: "straight", label: "Reta" },
+];
+
+const STROKES: { id: EdgeStrokeType; label: string }[] = [
+  { id: "solid", label: "Contínua" },
+  { id: "dashed", label: "Pontilhada" },
+];
+
+const PRIORITIES: {
+  id: FluxoEdgeData["semantic"]["priority"];
+  label: string;
+  className: string;
+}[] = [
+  { id: "low", label: "Baixa", className: "bg-muted text-muted-foreground" },
+  { id: "normal", label: "Normal", className: "bg-accent text-accent-foreground" },
+  { id: "high", label: "Alta", className: "bg-brand text-brand-foreground" },
+];
 
 export function EdgePropertiesModal({
   open,
@@ -34,115 +55,279 @@ export function EdgePropertiesModal({
   const sem = (patch: Partial<FluxoEdgeData["semantic"]>) =>
     setDraft({ ...draft, semantic: { ...draft.semantic, ...patch } });
 
+  const submit = () => {
+    onSave(draft);
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Editar seta</DialogTitle>
+      <DialogContent className="max-w-xl gap-0 overflow-hidden p-0">
+        {/* Header */}
+        <DialogHeader className="relative border-b border-border bg-card px-6 pt-6 pb-5">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand via-brand/40 to-transparent" />
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            editar conexão
+          </div>
+          <DialogTitle className="font-display text-2xl italic tracking-tight">
+            {draft.label || "seta sem rótulo"}
+          </DialogTitle>
+          <EdgePreview lineType={draft.lineType} stroke={draft.stroke} hasArrow={draft.hasArrow} />
         </DialogHeader>
-        <div className="space-y-3">
-          <Row label="Rótulo">
+
+        {/* Body */}
+        <div className="max-h-[60vh] space-y-4 overflow-y-auto px-6 py-5">
+          <Row label="Rótulo" hint="Texto exibido sobre a seta">
             <Input
               value={draft.label ?? ""}
               onChange={(e) => update({ label: e.target.value })}
-              placeholder="Texto opcional sobre a seta"
+              placeholder="ex: se aprovado"
+              className="h-10 font-display text-base italic"
+              autoFocus
             />
           </Row>
-          <Row label="Informação oculta">
+
+          <Row label="Informação oculta" icon={<EyeOff className="h-3 w-3" />}>
             <Textarea
               rows={2}
               value={draft.hiddenInfo}
               onChange={(e) => update({ hiddenInfo: e.target.value })}
+              className="resize-none"
             />
           </Row>
+
           <div className="grid grid-cols-2 gap-3">
-            <Row label="Tipo">
-              <select
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+            <Row label="Tipo de linha">
+              <SegmentedGroup
+                options={LINE_TYPES.map((t) => ({
+                  id: t.id,
+                  label: t.label,
+                  icon: <LineGlyph lineType={t.id} stroke="solid" />,
+                }))}
                 value={draft.lineType}
-                onChange={(e) => update({ lineType: e.target.value as EdgeLineType })}
-              >
-                <option value="orthogonal">Ortogonal</option>
-                <option value="bezier">Curva</option>
-                <option value="straight">Reta</option>
-              </select>
+                onChange={(v) => update({ lineType: v as EdgeLineType })}
+              />
             </Row>
             <Row label="Traço">
-              <select
-                className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
+              <SegmentedGroup
+                options={STROKES.map((s) => ({
+                  id: s.id,
+                  label: s.label,
+                  icon: <LineGlyph lineType="straight" stroke={s.id} />,
+                }))}
                 value={draft.stroke}
-                onChange={(e) => update({ stroke: e.target.value as EdgeStrokeType })}
-              >
-                <option value="solid">Contínua</option>
-                <option value="dashed">Pontilhada</option>
-              </select>
+                onChange={(v) => update({ stroke: v as EdgeStrokeType })}
+              />
             </Row>
           </div>
-          <div className="flex items-center justify-between rounded-md border border-border p-3">
-            <div>
-              <div className="text-sm font-medium">Mostrar seta</div>
-              <div className="text-xs text-muted-foreground">Conexão com ou sem ponta</div>
+
+          <div className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent">
+                <ArrowRight className="h-4 w-4" />
+              </div>
+              <div>
+                <div className="text-sm font-medium">Mostrar ponta de seta</div>
+                <div className="text-xs text-muted-foreground">
+                  Conexão direcional ou simples
+                </div>
+              </div>
             </div>
             <Switch
               checked={draft.hasArrow}
               onCheckedChange={(v) => update({ hasArrow: v })}
             />
           </div>
-          <Row label="Condição">
+
+          <Row label="Condição" hint="Quando este caminho é percorrido">
             <Input
               value={draft.semantic.condition}
               onChange={(e) => sem({ condition: e.target.value })}
+              placeholder="ex: resposta === 'sim'"
+              className="font-mono text-xs"
             />
           </Row>
+
           <Row label="Prioridade">
-            <select
-              className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm"
-              value={draft.semantic.priority}
-              onChange={(e) =>
-                sem({ priority: e.target.value as FluxoEdgeData["semantic"]["priority"] })
-              }
-            >
-              <option value="low">Baixa</option>
-              <option value="normal">Normal</option>
-              <option value="high">Alta</option>
-            </select>
+            <div className="flex gap-1.5">
+              {PRIORITIES.map((p) => {
+                const active = draft.semantic.priority === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => sem({ priority: p.id })}
+                    className={`flex-1 rounded-full border px-3 py-1.5 text-xs transition ${
+                      active
+                        ? `${p.className} border-transparent shadow-sm`
+                        : "border-border bg-card text-muted-foreground hover:border-foreground/30 hover:text-foreground"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
           </Row>
+
           <Row label="Observações">
             <Textarea
               rows={2}
               value={draft.semantic.notes}
               onChange={(e) => sem({ notes: e.target.value })}
+              className="resize-none"
             />
           </Row>
         </div>
-        <DialogFooter className="gap-2">
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/40 px-6 py-3">
           {onDelete ? (
-            <Button variant="destructive" onClick={onDelete} className="mr-auto">
-              Excluir
+            <Button
+              variant="ghost"
+              onClick={onDelete}
+              className="gap-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+              Excluir seta
             </Button>
-          ) : null}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button
-            onClick={() => {
-              onSave(draft);
-              onOpenChange(false);
-            }}
-          >
-            Salvar
-          </Button>
-        </DialogFooter>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full">
+              Cancelar
+            </Button>
+            <Button
+              onClick={submit}
+              className="rounded-full bg-foreground px-5 text-background hover:bg-foreground/90"
+            >
+              Salvar seta
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  hint,
+  icon,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
+          {icon}
+          {label}
+        </Label>
+        {hint ? <span className="text-[10px] text-muted-foreground/70">{hint}</span> : null}
+      </div>
       {children}
+    </div>
+  );
+}
+
+function SegmentedGroup<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { id: T; label: string; icon?: React.ReactNode }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex rounded-lg border border-border bg-muted p-1">
+      {options.map((o) => {
+        const active = value === o.id;
+        return (
+          <button
+            key={o.id}
+            onClick={() => onChange(o.id)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs transition ${
+              active
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {o.icon}
+            <span>{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function LineGlyph({
+  lineType,
+  stroke,
+}: {
+  lineType: EdgeLineType;
+  stroke: EdgeStrokeType;
+}) {
+  const dash = stroke === "dashed" ? "4 3" : undefined;
+  return (
+    <svg viewBox="0 0 24 12" className="h-3 w-6 text-current">
+      {lineType === "straight" && (
+        <line x1="1" y1="6" x2="23" y2="6" stroke="currentColor" strokeWidth="1.5" strokeDasharray={dash} />
+      )}
+      {lineType === "orthogonal" && (
+        <path d="M1 10 L1 6 L23 6 L23 2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={dash} />
+      )}
+      {lineType === "bezier" && (
+        <path d="M1 10 C 8 10, 16 2, 23 2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray={dash} />
+      )}
+    </svg>
+  );
+}
+
+function EdgePreview({
+  lineType,
+  stroke,
+  hasArrow,
+}: {
+  lineType: EdgeLineType;
+  stroke: EdgeStrokeType;
+  hasArrow: boolean;
+}) {
+  const dash = stroke === "dashed" ? "6 4" : undefined;
+  return (
+    <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-3">
+      <span className="h-6 w-10 rounded-md border border-border bg-card" />
+      <svg viewBox="0 0 80 16" className="h-4 flex-1 text-foreground/70">
+        <defs>
+          <marker id="modal-arr" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+            <path d="M0,0 L5,2.5 L0,5 z" fill="currentColor" />
+          </marker>
+        </defs>
+        {lineType === "straight" && (
+          <line
+            x1="2" y1="8" x2="78" y2="8"
+            stroke="currentColor" strokeWidth="1.6" strokeDasharray={dash}
+            markerEnd={hasArrow ? "url(#modal-arr)" : undefined}
+          />
+        )}
+        {lineType === "orthogonal" && (
+          <path d="M2 14 L2 8 L78 8 L78 2"
+            fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray={dash}
+            markerEnd={hasArrow ? "url(#modal-arr)" : undefined} />
+        )}
+        {lineType === "bezier" && (
+          <path d="M2 14 C 20 14, 60 2, 78 2"
+            fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray={dash}
+            markerEnd={hasArrow ? "url(#modal-arr)" : undefined} />
+        )}
+      </svg>
+      <span className="h-6 w-10 rounded-md border border-border bg-card" />
     </div>
   );
 }

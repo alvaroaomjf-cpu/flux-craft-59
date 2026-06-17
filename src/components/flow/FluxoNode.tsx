@@ -34,12 +34,12 @@ function FluxoNodeComponent({ data, selected }: NodeProps) {
     width: w,
     height: h,
     backgroundColor: d.style.backgroundColor,
-    border: `1.5px solid ${selected ? "#0f172a" : d.style.borderColor}`,
+    border: `1.5px solid ${selected ? "var(--brand)" : d.style.borderColor}`,
     color: d.style.textColor,
     boxShadow: selected
-      ? "0 0 0 3px rgba(15, 23, 42, 0.08)"
+      ? "0 0 0 4px color-mix(in oklab, var(--brand) 22%, transparent), 0 10px 24px -12px rgba(0,0,0,0.18)"
       : "0 1px 2px rgba(0,0,0,0.04)",
-    transition: "box-shadow 0.12s ease, border-color 0.12s ease",
+    transition: "box-shadow 0.16s ease, border-color 0.16s ease",
     position: "relative",
     ...shapeStyles(d.shape, w, h),
   };
@@ -52,6 +52,7 @@ function FluxoNodeComponent({ data, selected }: NodeProps) {
             position: "absolute",
             inset: 0,
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             padding: 12,
@@ -60,10 +61,25 @@ function FluxoNodeComponent({ data, selected }: NodeProps) {
           }}
         >
           <div className="text-[13px] font-medium leading-snug line-clamp-3">{d.title}</div>
+          {d.summary ? (
+            <div className="mt-0.5 text-[10px] opacity-60 line-clamp-1">{d.summary}</div>
+          ) : null}
         </div>
+
+        {d.hiddenInfo ? (
+          <span
+            className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-current opacity-40"
+            aria-label="Tem informação oculta"
+          />
+        ) : null}
       </div>
 
-      {/* Hidden info tooltip */}
+      {selected ? (
+        <div className="pointer-events-none absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-foreground px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-background opacity-80">
+          duplo-clique para editar
+        </div>
+      ) : null}
+
       {d.hiddenInfo ? (
         <div
           className="pointer-events-none absolute left-1/2 z-50 hidden -translate-x-1/2 rounded-md border border-border bg-popover px-2 py-1 text-[11px] text-popover-foreground shadow-md group-hover:block"
