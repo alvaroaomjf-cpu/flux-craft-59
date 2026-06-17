@@ -45,6 +45,7 @@ import {
   projectToFlowFile,
   stringifyFlowFile,
 } from "@/lib/flow/serialization";
+import { exportFlowPng } from "@/lib/export/exportPng";
 import { setCurrentProject, upsertProject } from "@/lib/flow/store";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, HelpCircle, Palette, Presentation, X } from "lucide-react";
@@ -372,10 +373,18 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
     }
   }, [nodes, edges, background]);
 
-  const exportPng = useCallback(() => {
-    // TODO(real-export): integrar html-to-image ou recurso desktop para rasterizar o fluxo completo.
-    toast.info("Exportação PNG: simulada nesta versão visual.");
-  }, []);
+  const exportPng = useCallback(async () => {
+    try {
+      await exportFlowPng({
+        root: wrapperRef.current,
+        fileName: getFlowFileName(projectRef.current.name).replace(/\.flow\.json$/i, ".png"),
+        backgroundColor: background,
+      });
+      toast.success("PNG exportado.");
+    } catch (error) {
+      toast.error((error as Error).message || "Não foi possível exportar PNG.");
+    }
+  }, [background]);
 
   const triggerImport = useCallback(() => fileInputRef.current?.click(), []);
 
@@ -437,7 +446,7 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
       }
       if (ctrl && key === "p") {
         e.preventDefault();
-        exportPng();
+        void exportPng();
         return;
       }
       if (ctrl && key === "l") {
@@ -801,7 +810,7 @@ function FlowEditorInner({ project: initialProject }: FlowEditorProps) {
         onRedo={redo}
         onOrganize={() => organize("horizontal")}
         onExportJson={exportJson}
-        onExportPng={exportPng}
+        onExportPng={() => void exportPng()}
         onImportJson={triggerImport}
         onFitView={() => fitView({ padding: 0.2 })}
         onPresentation={() => setPresentation(true)}
