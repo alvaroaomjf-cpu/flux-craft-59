@@ -13,6 +13,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Trash2, Type, Palette, Brain, EyeOff, X } from "lucide-react";
 import type { FluxoNodeData, ShapeType } from "@/lib/flow/types";
 
+type EditableColorKey = "backgroundColor" | "borderColor" | "textColor";
+
 const SHAPES: { id: ShapeType; label: string }[] = [
   { id: "rectangle", label: "Retângulo" },
   { id: "rounded-rectangle", label: "Arredondado" },
@@ -51,7 +53,7 @@ export function NodePropertiesModal({
   if (!draft) return null;
 
   const update = (patch: Partial<FluxoNodeData>) => setDraft({ ...draft, ...patch });
-  const updateStyle = (k: keyof FluxoNodeData["style"], v: string) =>
+  const updateStyle = (k: EditableColorKey, v: string) =>
     setDraft({ ...draft, style: { ...draft.style, [k]: v } });
   const updateSemantic = (k: keyof FluxoNodeData["semantic"], v: unknown) =>
     setDraft({ ...draft, semantic: { ...draft.semantic, [k]: v } });
@@ -59,7 +61,7 @@ export function NodePropertiesModal({
   const applyPalette = (p: (typeof PALETTES)[number]) =>
     setDraft({
       ...draft,
-      style: { backgroundColor: p.bg, borderColor: p.border, textColor: p.text },
+      style: { ...draft.style, backgroundColor: p.bg, borderColor: p.border, textColor: p.text },
     });
 
   const submit = () => {
@@ -227,8 +229,8 @@ export function NodePropertiesModal({
                   onChange={(e) =>
                     update({
                       icon: e.target.value
-                        ? { type: "default", name: e.target.value }
-                        : undefined,
+                        ? { type: "default", name: e.target.value, customSrc: null }
+                        : { type: "none", name: "", customSrc: null },
                     })
                   }
                 />
@@ -273,37 +275,21 @@ export function NodePropertiesModal({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/40 px-6 py-3">
-          {onDelete ? (
-            <Button
-              variant="ghost"
-              onClick={onDelete}
-              className="gap-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-              Excluir bloco
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full">
+        <div className="flex items-center justify-between border-t border-border bg-muted/30 px-6 py-4">
+          <Button variant="ghost" size="sm" onClick={onDelete} className="gap-2 text-destructive hover:text-destructive">
+            <Trash2 className="h-4 w-4" /> Excluir
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={submit}
-              className="rounded-full bg-foreground px-5 text-background hover:bg-foreground/90"
-            >
-              Salvar bloco
-            </Button>
+            <Button onClick={submit}>Salvar alterações</Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-
-/* ---------- Subcomponents ---------- */
 
 function Field({
   label,
@@ -318,83 +304,36 @@ function Field({
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <Label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">
-          {icon}
-          {label}
-        </Label>
-        {hint ? <span className="text-[10px] text-muted-foreground/70">{hint}</span> : null}
+      <div className="flex items-center gap-1.5">
+        {icon}
+        <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</Label>
       </div>
       {children}
+      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }
 
-function NumberStepper({
-  value,
-  onChange,
-  min = 0,
-  step = 1,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-  min?: number;
-  step?: number;
-}) {
-  return (
-    <div className="flex items-center overflow-hidden rounded-md border border-border bg-background">
-      <button
-        type="button"
-        onClick={() => onChange(Math.max(min, value - step))}
-        className="h-9 w-9 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        −
-      </button>
-      <Input
-        type="number"
-        value={value}
-        onChange={(e) => onChange(Math.max(min, Number(e.target.value) || min))}
-        className="h-9 border-0 text-center font-mono text-sm focus-visible:ring-0"
-      />
-      <button
-        type="button"
-        onClick={() => onChange(value + step)}
-        className="h-9 w-9 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-      >
-        +
-      </button>
-    </div>
-  );
-}
-
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <Field label={label}>
-      <div className="flex items-center overflow-hidden rounded-md border border-border bg-background">
-        <label className="relative h-9 w-10 cursor-pointer border-r border-border">
-          <span className="absolute inset-1 rounded" style={{ background: value }} />
-          <input
-            type="color"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          />
-        </label>
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 border-0 font-mono text-xs focus-visible:ring-0"
-        />
+      <div className="flex gap-2">
+        <Input type="color" value={value} onChange={(e) => onChange(e.target.value)} className="h-10 w-14 p-1" />
+        <Input value={value} onChange={(e) => onChange(e.target.value)} className="font-mono text-xs" />
       </div>
     </Field>
+  );
+}
+
+function NumberStepper({ value, onChange, min, step }: { value: number; onChange: (v: number) => void; min: number; step: number }) {
+  return (
+    <Input
+      type="number"
+      value={value}
+      min={min}
+      step={step}
+      onChange={(e) => onChange(Math.max(min, Number(e.target.value)))}
+    />
   );
 }
 
@@ -407,7 +346,7 @@ function ChipsField({
   label: string;
   values: string[];
   onChange: (v: string[]) => void;
-  placeholder?: string;
+  placeholder: string;
 }) {
   const [input, setInput] = useState("");
   const add = () => {
@@ -416,21 +355,13 @@ function ChipsField({
     onChange([...values, v]);
     setInput("");
   };
-  const remove = (i: number) => onChange(values.filter((_, idx) => idx !== i));
   return (
     <Field label={label}>
-      <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-background p-2">
-        {values.map((v, i) => (
-          <span
-            key={`${v}-${i}`}
-            className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-xs"
-          >
+      <div className="flex flex-wrap gap-1.5 rounded-lg border border-input bg-background p-2">
+        {values.map((v, idx) => (
+          <span key={`${v}-${idx}`} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs">
             {v}
-            <button
-              onClick={() => remove(i)}
-              className="text-muted-foreground hover:text-destructive"
-              aria-label={`Remover ${v}`}
-            >
+            <button onClick={() => onChange(values.filter((_, i) => i !== idx))}>
               <X className="h-3 w-3" />
             </button>
           </span>
@@ -439,55 +370,47 @@ function ChipsField({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === ",") {
+            if (e.key === "Enter") {
               e.preventDefault();
               add();
-            } else if (e.key === "Backspace" && !input && values.length) {
-              remove(values.length - 1);
             }
           }}
-          onBlur={add}
-          placeholder={values.length === 0 ? placeholder : ""}
-          className="min-w-[140px] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+          placeholder={values.length ? "" : placeholder}
+          className="min-w-40 flex-1 bg-transparent text-sm outline-none"
         />
       </div>
     </Field>
   );
 }
 
-function ShapeGlyph({ shape }: { shape: ShapeType }) {
-  const stroke = "currentColor";
-  const props = { fill: "none", stroke, strokeWidth: 1.5 };
-  return (
-    <svg viewBox="0 0 32 22" className="h-5 w-7 text-foreground/70">
-      {shape === "rectangle" && <rect x="2" y="3" width="28" height="16" rx="1" {...props} />}
-      {shape === "rounded-rectangle" && <rect x="2" y="3" width="28" height="16" rx="6" {...props} />}
-      {shape === "circle" && <ellipse cx="16" cy="11" rx="13" ry="9" {...props} />}
-      {shape === "diamond" && <polygon points="16,2 30,11 16,20 2,11" {...props} />}
-      {shape === "hexagon" && <polygon points="8,3 24,3 31,11 24,19 8,19 1,11" {...props} />}
-      {shape === "cylinder" && (
-        <g {...props}>
-          <ellipse cx="16" cy="5" rx="13" ry="3" />
-          <path d="M3 5 V17" />
-          <path d="M29 5 V17" />
-          <ellipse cx="16" cy="17" rx="13" ry="3" />
-        </g>
-      )}
-    </svg>
-  );
-}
-
 function NodePreview({ draft }: { draft: FluxoNodeData }) {
   return (
     <div
-      className="hidden h-16 w-20 shrink-0 items-center justify-center rounded-lg border shadow-sm sm:flex"
+      className="flex h-14 w-20 shrink-0 items-center justify-center border text-[10px] font-medium shadow-sm"
       style={{
         background: draft.style.backgroundColor,
         borderColor: draft.style.borderColor,
         color: draft.style.textColor,
+        borderRadius: draft.shape === "circle" ? 999 : draft.shape === "rounded-rectangle" ? 12 : 4,
+        transform: draft.shape === "diamond" ? "rotate(45deg)" : undefined,
+        clipPath:
+          draft.shape === "hexagon"
+            ? "polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%)"
+            : undefined,
       }}
     >
-      <ShapeGlyph shape={draft.shape} />
+      <span style={{ transform: draft.shape === "diamond" ? "rotate(-45deg)" : undefined }}>Aa</span>
     </div>
   );
+}
+
+function ShapeGlyph({ shape }: { shape: ShapeType }) {
+  const base = "h-7 w-9 border border-current bg-background/70";
+  if (shape === "circle") return <span className={`${base} rounded-full`} />;
+  if (shape === "rounded-rectangle") return <span className={`${base} rounded-lg`} />;
+  if (shape === "diamond") return <span className={`${base} rotate-45 rounded-sm`} />;
+  if (shape === "hexagon")
+    return <span className={base} style={{ clipPath: "polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%)" }} />;
+  if (shape === "cylinder") return <span className={base} style={{ borderRadius: "999px / 12px" }} />;
+  return <span className={`${base} rounded-sm`} />;
 }
