@@ -1,4 +1,4 @@
-
+import { useState } from "react";
 import {
   MousePointer2,
   Square,
@@ -61,24 +61,69 @@ const tools: { id: Tool; label: string; icon: React.ElementType; shortcut: strin
   { id: "text", label: "Texto", icon: Type, shortcut: "T" },
 ];
 
+type DragState = {
+  pointerX: number;
+  pointerY: number;
+  originX: number;
+  originY: number;
+};
+
 export function Toolbar(props: ToolbarProps) {
   const { mode, onModeChange } = props;
   const isFloating = mode === "floating";
+  const [floatingPosition, setFloatingPosition] = useState({ x: 16, y: 80 });
+  const [dragState, setDragState] = useState<DragState | null>(null);
+
+  const startDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!isFloating) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragState({
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      originX: floatingPosition.x,
+      originY: floatingPosition.y,
+    });
+  };
+
+  const updateDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState) return;
+    setFloatingPosition({
+      x: Math.max(8, dragState.originX + event.clientX - dragState.pointerX),
+      y: Math.max(8, dragState.originY + event.clientY - dragState.pointerY),
+    });
+  };
+
+  const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragState) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    setDragState(null);
+  };
 
   return (
     <div
       className={cn(
         "z-30 flex flex-col gap-1 border border-border bg-card/95 p-2 backdrop-blur-md",
         isFloating
-          ? "absolute left-4 top-20 w-[220px] rounded-xl shadow-lg"
+          ? "absolute w-[220px] rounded-xl shadow-lg"
           : "absolute left-0 top-12 h-[calc(100%-3rem)] w-[220px] rounded-none border-l-0 border-b-0 border-t-0 shadow-sm",
       )}
+      style={isFloating ? { left: floatingPosition.x, top: floatingPosition.y } : undefined}
     >
-      <div className="flex items-center justify-between px-1 pb-1">
+      <div
+        className={cn(
+          "flex items-center justify-between px-1 pb-1",
+          isFloating ? "cursor-move select-none" : undefined,
+        )}
+        onPointerDown={startDrag}
+        onPointerMove={updateDrag}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
         <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           Ferramentas
         </span>
         <button
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={() => onModeChange(isFloating ? "side" : "floating")}
           className="rounded p-1 text-muted-foreground hover:bg-accent"
           title={isFloating ? "Modo lateral" : "Modo flutuante"}
@@ -110,27 +155,10 @@ export function Toolbar(props: ToolbarProps) {
       </Section>
 
       <Section title="Visualização">
-        <ToolRow
-          icon={Grid3x3}
-          label="Grid"
-          shortcut="G"
-          active={props.gridOn}
-          onClick={props.onToggleGrid}
-        />
-        <ToolRow
-          icon={Magnet}
-          label="Snap"
-          shortcut="S"
-          active={props.snapOn}
-          onClick={props.onToggleSnap}
-        />
+        <ToolRow icon={Grid3x3} label="Grid" shortcut="G" active={props.gridOn} onClick={props.onToggleGrid} />
+        <ToolRow icon={Magnet} label="Snap" shortcut="S" active={props.snapOn} onClick={props.onToggleSnap} />
         <ToolRow icon={Maximize2} label="Ajustar à tela" shortcut="Ctrl+0" onClick={props.onFitView} />
-        <ToolRow
-          icon={Presentation}
-          label="Apresentação"
-          shortcut="F11"
-          onClick={props.onPresentation}
-        />
+        <ToolRow icon={Presentation} label="Apresentação" shortcut="F11" onClick={props.onPresentation} />
       </Section>
 
       <Section title="Arquivo">
@@ -171,9 +199,7 @@ function ToolRow({
       onClick={onClick}
       className={cn(
         "group flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-        active
-          ? "bg-foreground text-background"
-          : "text-foreground hover:bg-accent",
+        active ? "bg-foreground text-background" : "text-foreground hover:bg-accent",
       )}
     >
       <span className="flex items-center gap-2">
@@ -183,9 +209,7 @@ function ToolRow({
       <kbd
         className={cn(
           "rounded border px-1 text-[10px] font-medium",
-          active
-            ? "border-background/30 text-background/80"
-            : "border-border text-muted-foreground",
+          active ? "border-background/30 text-background/80" : "border-border text-muted-foreground",
         )}
       >
         {shortcut}
@@ -193,4 +217,3 @@ function ToolRow({
     </button>
   );
 }
-
