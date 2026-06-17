@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Handle, NodeResizer, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import type { FluxoNodeData, ShapeType } from "@/lib/flow/types";
 
 function shapeStyles(shape: ShapeType, w: number, h: number): React.CSSProperties {
@@ -24,8 +24,9 @@ function shapeStyles(shape: ShapeType, w: number, h: number): React.CSSPropertie
   }
 }
 
-function FluxoNodeComponent({ data, selected }: NodeProps) {
+function FluxoNodeComponent({ id, data, selected }: NodeProps) {
   const d = data as FluxoNodeData;
+  const { setNodes } = useReactFlow();
   const w = d.width ?? 180;
   const h = d.height ?? 80;
   const isDiamond = d.shape === "diamond";
@@ -46,6 +47,30 @@ function FluxoNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div className="fluxo-node group" style={{ width: w, height: h, position: "relative" }}>
+      <NodeResizer
+        isVisible={Boolean(selected)}
+        minWidth={80}
+        minHeight={40}
+        handleClassName="!h-2.5 !w-2.5 !rounded-full !border !border-brand !bg-background"
+        lineClassName="!border-brand/70"
+        onResize={(_, params) => {
+          setNodes((nodes) =>
+            nodes.map((node) => {
+              if (node.id !== id) return node;
+              const nodeData = node.data as FluxoNodeData;
+              return {
+                ...node,
+                data: {
+                  ...nodeData,
+                  width: Math.max(80, params.width),
+                  height: Math.max(40, params.height),
+                },
+              };
+            }),
+          );
+        }}
+      />
+
       <div style={baseStyle} title={d.hiddenInfo || d.summary || d.title}>
         <div
           style={{
@@ -61,9 +86,7 @@ function FluxoNodeComponent({ data, selected }: NodeProps) {
           }}
         >
           <div className="text-[13px] font-medium leading-snug line-clamp-3">{d.title}</div>
-          {d.summary ? (
-            <div className="mt-0.5 text-[10px] opacity-60 line-clamp-1">{d.summary}</div>
-          ) : null}
+          {d.summary ? <div className="mt-0.5 text-[10px] opacity-60 line-clamp-1">{d.summary}</div> : null}
         </div>
 
         {d.hiddenInfo ? (
@@ -89,10 +112,10 @@ function FluxoNodeComponent({ data, selected }: NodeProps) {
         </div>
       ) : null}
 
-      <Handle type="target" position={Position.Top} id="t" />
-      <Handle type="source" position={Position.Bottom} id="b" />
-      <Handle type="target" position={Position.Left} id="l" />
-      <Handle type="source" position={Position.Right} id="r" />
+      <Handle type="target" position={Position.Top} id="top" />
+      <Handle type="source" position={Position.Bottom} id="bottom" />
+      <Handle type="target" position={Position.Left} id="left" />
+      <Handle type="source" position={Position.Right} id="right" />
     </div>
   );
 }
