@@ -1,11 +1,22 @@
-// Lightweight in-memory + localStorage store for the flow library and the currently open project.
-// TODO(backend): replace with real persistence when a backend is added.
+// Store local temporário para biblioteca e projeto atual.
+//
+// Esta camada ainda usa localStorage porque o projeto nasceu como front-end web no Lovable.
+// Futuramente, no app desktop, esta implementação deve ser substituída por persistência local
+// em arquivos `.flow.json`, mantendo a mesma interface pública sempre que possível.
 
 import { MOCK_LIBRARY } from "./example";
+import { createEmptyFlowProject, createFlowId, nowIso } from "./defaults";
 import type { FlowProject } from "./types";
 
 const LIBRARY_KEY = "fluxo.library.v1";
 const CURRENT_KEY = "fluxo.current.v1";
+
+function normalizeLibraryCandidate(candidate: unknown): FlowProject[] | null {
+  if (!Array.isArray(candidate)) return null;
+  return candidate.filter((item): item is FlowProject => {
+    return Boolean(item) && typeof item === "object" && typeof (item as FlowProject).id === "string";
+  });
+}
 
 export function loadLibrary(): FlowProject[] {
   if (typeof window === "undefined") return MOCK_LIBRARY;
@@ -15,8 +26,8 @@ export function loadLibrary(): FlowProject[] {
       localStorage.setItem(LIBRARY_KEY, JSON.stringify(MOCK_LIBRARY));
       return MOCK_LIBRARY;
     }
-    const parsed = JSON.parse(raw) as FlowProject[];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    const parsed = normalizeLibraryCandidate(JSON.parse(raw));
+    if (!parsed || parsed.length === 0) {
       localStorage.setItem(LIBRARY_KEY, JSON.stringify(MOCK_LIBRARY));
       return MOCK_LIBRARY;
     }
@@ -34,7 +45,12 @@ export function saveLibrary(lib: FlowProject[]) {
 export function upsertProject(p: FlowProject) {
   const lib = loadLibrary();
   const idx = lib.findIndex((x) => x.id === p.id);
-  const next = { ...p, updatedAt: new Date().toISOString() };
+  const now = nowIso();
+  const next: FlowProject = {
+    ...p,
+    createdAt: p.createdAt ?? now,
+    updatedAt: now,
+  };
   if (idx >= 0) lib[idx] = next;
   else lib.unshift(next);
   saveLibrary(lib);
@@ -60,21 +76,20 @@ export function getCurrentProject(): FlowProject | null {
 }
 
 export function newEmptyProject(name = "Novo fluxo"): FlowProject {
-  return {
-    id: `flow-${Date.now()}`,
-    name,
-    background: "#fafafa",
-    updatedAt: new Date().toISOString(),
-    nodes: [],
-    edges: [],
-  };
+  return createEmptyFlowProject(name);
 }
 
 export function duplicateProject(p: FlowProject): FlowProject {
+  const now = nowIso();
   return {
     ...p,
-    id: `flow-${Date.now()}`,
+    id: createFlowId("flow"),
     name: `${p.name} (cópia)`,
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
+    metadata: {
+      ...p.metadata,
+      source: "duplicated",
+    },
   };
 }
